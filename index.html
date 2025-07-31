@@ -3,69 +3,21 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>EFM Roadside Welfare Timer</title>
+  <title>Roadside Countdown</title>
   <style>
     body {
       margin: 0;
-      font-family: sans-serif;
-      background: var(--bg-color);
+      font-family: Arial, sans-serif;
+      background-color: #121212;
       color: white;
       overflow-x: hidden;
     }
 
-    :root {
-      --bg-color: #000;
-    }
-
-    .tab {
-      display: none;
-    }
-
-    .tab.active {
-      display: block;
-    }
-
-    .tabs {
-      display: flex;
-      flex-wrap: wrap;
-    }
-
-    .tabs button {
-      background: #333;
-      color: white;
-      border: none;
-      padding: 10px;
-      cursor: pointer;
-    }
-
-    .tabs button.active {
-      background: #555;
-    }
-
-    .bird {
-      position: absolute;
-      width: 60px;
-      height: auto;
-      animation: fly 15s linear forwards;
-      z-index: 5;
-    }
-
-    @keyframes fly {
-      from {
-        left: -100px;
-      }
-      to {
-        left: 100vw;
-      }
-    }
-
-    .stars {
+    #starfield, #dayfield {
       position: fixed;
-      width: 100%;
-      height: 100%;
-      background: transparent;
-      overflow: hidden;
+      top: 0; left: 0; right: 0; bottom: 0;
       z-index: -1;
+      overflow: hidden;
     }
 
     .star {
@@ -73,6 +25,7 @@
       width: 2px;
       height: 2px;
       background: white;
+      border-radius: 50%;
       animation: twinkle 2s infinite ease-in-out;
     }
 
@@ -86,185 +39,187 @@
       width: 100px;
       height: 2px;
       background: white;
-      opacity: 0;
       transform: rotate(45deg);
-      animation: shoot 1s ease-in-out;
+      animation: shoot 1s linear;
     }
 
     @keyframes shoot {
-      0% {
-        top: -50px;
-        left: -50px;
-        opacity: 0;
-      }
-      10% {
-        opacity: 1;
-      }
-      100% {
-        top: 100vh;
-        left: 100vw;
-        opacity: 0;
-      }
+      0% { transform: translateX(-200px) translateY(-200px) rotate(45deg); opacity: 1; }
+      100% { transform: translateX(100vw) translateY(100vh) rotate(45deg); opacity: 0; }
+    }
+
+    #inputForm {
+      padding: 1rem;
+      text-align: center;
+    }
+
+    #inputForm input {
+      padding: 0.5rem;
+      font-size: 1.2rem;
+    }
+
+    #timers {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 1rem;
+      padding: 1rem;
+    }
+
+    .vehicle-timer {
+      background: #1e1e1e;
+      border-radius: 10px;
+      padding: 1rem;
+      width: 300px;
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+    }
+
+    .bird {
+      position: absolute;
+      width: 40px;
+      animation: fly linear forwards;
+    }
+
+    @keyframes fly {
+      from { transform: translateX(-100px); }
+      to { transform: translateX(110vw); }
     }
   </style>
 </head>
 <body>
-  <div class="stars" id="starfield"></div>
+  <div id="starfield"></div>
+  <div id="dayfield"></div>
 
-  <div class="tabs" id="tabs"></div>
-  <div id="tab-content"></div>
+  <div id="inputForm">
+    <input type="text" id="regInput" placeholder="Enter REG" />
+    <button onclick="addVehicle()">Start Timers</button>
+  </div>
+
+  <div id="timers"></div>
+
+  <audio id="twinkleSound" src="https://www.myinstants.com/media/sounds/twinkle.mp3"></audio>
 
   <script>
     const vehicles = {};
 
-    function createVehicleTab(reg) {
-      if (vehicles[reg]) return;
+    function addVehicle() {
+      const reg = document.getElementById('regInput').value.trim().toUpperCase();
+      if (!reg || vehicles[reg]) return;
+
+      const container = document.createElement('div');
+      container.className = 'vehicle-timer';
+      container.innerHTML = `
+        <h3>${reg}</h3>
+        <p>Countdown: <span id="countdown-${reg}">30:00</span></p>
+        <p>Recovery: <span id="recovery-${reg}">00:00</span></p>
+        <button onclick="resetCountdown('${reg}')">Reset Countdown</button>
+        <button onclick="resetRecovery('${reg}')">Reset Recovery</button>
+      `;
+      document.getElementById('timers').appendChild(container);
 
       vehicles[reg] = {
-        countdownStart: null,
-        countdownEnded: false,
-        recoveryStart: null,
-        inRecovery: false
+        countdownStart: Date.now(),
+        recoveryStart: Date.now(),
+        countdownExpired: false,
       };
-
-      const tabButton = document.createElement('button');
-      tabButton.textContent = reg;
-      tabButton.onclick = () => activateTab(reg);
-      tabButton.id = `tab-btn-${reg}`;
-      document.getElementById('tabs').appendChild(tabButton);
-
-      const tabDiv = document.createElement('div');
-      tabDiv.classList.add('tab');
-      tabDiv.id = `tab-${reg}`;
-      tabDiv.innerHTML = `
-        <h2>${reg}</h2>
-        <div>Status: <span id="status-${reg}">Awaiting Recovery</span></div>
-        <div>Countdown: <span id="countdown-${reg}">30:00</span></div>
-        <button onclick="resetCountdown('${reg}')">Reset Countdown</button>
-        <div id="recovery-${reg}">Recovery Time: 0:00</div>
-        <button onclick="startRecovery('${reg}')">Start Recovery</button>
-        <button onclick="stopRecovery('${reg}')">Stop Recovery</button>
-      `;
-      document.getElementById('tab-content').appendChild(tabDiv);
-
-      activateTab(reg);
-      resetCountdown(reg);
-    }
-
-    function activateTab(reg) {
-      document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
-      document.querySelectorAll('.tabs button').forEach(btn => btn.classList.remove('active'));
-      document.getElementById(`tab-${reg}`).classList.add('active');
-      document.getElementById(`tab-btn-${reg}`).classList.add('active');
     }
 
     function resetCountdown(reg) {
       vehicles[reg].countdownStart = Date.now();
-      vehicles[reg].countdownEnded = false;
+      vehicles[reg].countdownExpired = false;
     }
 
-    function startRecovery(reg) {
+    function resetRecovery(reg) {
       vehicles[reg].recoveryStart = Date.now();
-      vehicles[reg].inRecovery = true;
-      document.getElementById(`status-${reg}`).innerText = "In Recovery";
     }
 
-    function stopRecovery(reg) {
-      vehicles[reg].inRecovery = false;
-      document.getElementById(`status-${reg}`).innerText = "Recovered";
+    function formatTime(ms) {
+      const totalSeconds = Math.floor(ms / 1000);
+      const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
+      const seconds = String(totalSeconds % 60).padStart(2, '0');
+      return `${minutes}:${seconds}`;
     }
 
-    function formatTime(seconds) {
-      const m = Math.floor(seconds / 60);
-      const s = seconds % 60;
-      return `${m}:${s.toString().padStart(2, '0')}`;
-    }
+    function updateTimers() {
+      const now = Date.now();
+      for (const reg in vehicles) {
+        const data = vehicles[reg];
+        const cdElapsed = now - data.countdownStart;
+        const rcElapsed = now - data.recoveryStart;
 
-    function updateDisplay() {
-      Object.keys(vehicles).forEach(reg => {
-        const v = vehicles[reg];
+        const countdownLeft = 30 * 60 * 1000 - cdElapsed;
+        const cdElem = document.getElementById(`countdown-${reg}`);
+        const rcElem = document.getElementById(`recovery-${reg}`);
 
-        if (v.countdownStart) {
-          const elapsed = Math.floor((Date.now() - v.countdownStart) / 1000);
-          const remaining = Math.max(0, 1800 - elapsed);
-          document.getElementById(`countdown-${reg}`).innerText = formatTime(remaining);
+        if (cdElem && rcElem) {
+          cdElem.textContent = countdownLeft > 0 ? formatTime(countdownLeft) : '00:00';
+          rcElem.textContent = formatTime(rcElapsed);
 
-          if (remaining === 0 && !v.countdownEnded) {
-            v.countdownEnded = true;
-            new Notification(`${reg} has reached 30 minutes!`);
-            const sound = new Audio('https://cdn.pixabay.com/download/audio/2022/03/15/audio_d62cf51db4.mp3?filename=twinkle-113735.mp3');
-            sound.play();
+          if (countdownLeft <= 0 && !data.countdownExpired) {
+            data.countdownExpired = true;
+            notifyUser(reg);
           }
         }
-
-        if (v.inRecovery && v.recoveryStart) {
-          const elapsed = Math.floor((Date.now() - v.recoveryStart) / 1000);
-          document.getElementById(`recovery-${reg}`).innerText = `Recovery Time: ${formatTime(elapsed)}`;
-        }
-      });
-
-      requestAnimationFrame(updateDisplay);
+      }
+      requestAnimationFrame(updateTimers);
     }
 
-    updateDisplay();
+    function notifyUser(reg) {
+      const audio = document.getElementById('twinkleSound');
+      if (audio) audio.play();
+      if (Notification.permission === 'granted') {
+        new Notification(`30min timer expired for ${reg}`);
+      }
+    }
 
-    if (Notification.permission !== "granted") {
+    if (Notification.permission !== 'granted') {
       Notification.requestPermission();
     }
 
-    // Dynamic styling for day/night
-    const now = new Date();
-    const hour = now.getHours();
-    const root = document.documentElement;
-
-    const starfield = document.getElementById('starfield');
-
-    if (hour >= 17 || hour < 6) {
-      root.style.setProperty('--bg-color', '#000');
+    function createStars() {
       for (let i = 0; i < 100; i++) {
         const star = document.createElement('div');
-        star.classList.add('star');
-        star.style.top = `${Math.random() * 100}vh`;
-        star.style.left = `${Math.random() * 100}vw`;
-        starfield.appendChild(star);
+        star.className = 'star';
+        star.style.top = `${Math.random() * 100}%`;
+        star.style.left = `${Math.random() * 100}%`;
+        document.getElementById('starfield').appendChild(star);
       }
+    }
 
-      setInterval(() => {
-        const shootingStar = document.createElement('div');
-        shootingStar.classList.add('shooting-star');
-        shootingStar.style.top = `${Math.random() * 50}vh`;
-        shootingStar.style.left = `${Math.random() * 50}vw`;
-        starfield.appendChild(shootingStar);
-        setTimeout(() => shootingStar.remove(), 1000);
-      }, 10000);
+    function createShootingStar() {
+      const star = document.createElement('div');
+      star.className = 'shooting-star';
+      star.style.top = `${Math.random() * window.innerHeight}px`;
+      star.style.left = `-${Math.random() * 200}px`;
+      document.getElementById('starfield').appendChild(star);
+      setTimeout(() => star.remove(), 1000);
+    }
 
-    } else {
-      root.style.setProperty('--bg-color', '#87ceeb'); // light sky
-      spawnBirdsRandomly();
+    function spawnBird() {
+      const bird = document.createElement('img');
+      bird.src = 'https://i.imgur.com/O7YtG8B.png';
+      bird.className = 'bird';
+      bird.style.top = `${Math.random() * 60 + 10}%`;
+      bird.style.animationDuration = `${10 + Math.random() * 10}s`;
+      document.getElementById('dayfield').appendChild(bird);
+      setTimeout(() => bird.remove(), 20000);
     }
 
     function spawnBirdsRandomly() {
-      const birdImg = 'https://e7.pngegg.com/pngimages/1024/650/png-clipart-flying-bird-birds-green-thumbnail.png';
-
-      function spawnBird() {
-        const bird = document.createElement('img');
-        bird.src = birdImg;
-        bird.classList.add('bird');
-        bird.style.top = `${Math.random() * 60 + 10}vh`;
-        bird.style.animationDuration = `${10 + Math.random() * 10}s`;
-        document.body.appendChild(bird);
-        bird.addEventListener('animationend', () => bird.remove());
-
-        const nextSpawn = Math.random() * 10000 + 5000;
-        setTimeout(spawnBird, nextSpawn);
-      }
-
       spawnBird();
+      setTimeout(spawnBirdsRandomly, 5000 + Math.random() * 10000);
     }
 
-    // Init test vehicles
-    createVehicleTab("EFM-001");
-    createVehicleTab("EFM-002");
+    const hour = new Date().getHours();
+    if (hour >= 6 && hour < 17) {
+      document.getElementById('dayfield').style.background = 'linear-gradient(to top, #87cefa, #fff)';
+      spawnBirdsRandomly();
+    } else {
+      createStars();
+      setInterval(createShootingStar, 4000 + Math.random() * 4000);
+    }
+
+    updateTimers();
   </script>
 </body>
 </html>
