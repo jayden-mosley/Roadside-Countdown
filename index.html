@@ -3,208 +3,223 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>EFM Roadside Countdown</title>
+  <title>Roadside Countdown</title>
   <style>
     body {
       margin: 0;
-      font-family: sans-serif;
-      background: linear-gradient(to top, #d0eaff, #ffffff);
-      overflow-x: hidden;
-      color: #333;
-    }
-    .container {
-      padding: 1rem;
-    }
-    #regForm {
-      margin-bottom: 1rem;
-    }
-    .vehicle {
-      background: rgba(255, 255, 255, 0.8);
-      padding: 1rem;
-      border-radius: 8px;
-      margin-bottom: 1rem;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-    }
-    .bird {
-      position: fixed;
-      top: 0;
-      width: 40px;
-      height: auto;
-      z-index: 20;
-      pointer-events: none;
-      animation-name: fly;
-      animation-timing-function: linear;
-    }
-    @keyframes fly-left {
-      from {
-        transform: translateX(100vw) scaleX(1);
-      }
-      to {
-        transform: translateX(-100px) scaleX(1);
-      }
-    }
-    @keyframes fly-right {
-      from {
-        transform: translateX(-100px) scaleX(-1);
-      }
-      to {
-        transform: translateX(100vw) scaleX(-1);
-      }
-    }
-    .starfield {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-      z-index: -1;
-    }
-    .dark {
-      background: radial-gradient(#000010, #000000);
+      font-family: Arial, sans-serif;
+      background-color: #121212;
       color: white;
+      overflow-x: hidden;
+    }
+
+    #starfield, #dayfield {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: -1;
+      overflow: hidden;
+    }
+
+    .star {
+      position: absolute;
+      width: 2px;
+      height: 2px;
+      background: white;
+      border-radius: 50%;
+      animation: twinkle 2s infinite ease-in-out;
+    }
+
+    @keyframes twinkle {
+      0%, 100% { opacity: 0.2; }
+      50% { opacity: 1; }
+    }
+
+    .shooting-star {
+      position: absolute;
+      width: 100px;
+      height: 2px;
+      background: white;
+      transform: rotate(45deg);
+      animation: shoot 1s linear;
+    }
+
+    @keyframes shoot {
+      0% { transform: translateX(-200px) translateY(-200px) rotate(45deg); opacity: 1; }
+      100% { transform: translateX(100vw) translateY(100vh) rotate(45deg); opacity: 0; }
+    }
+
+    #inputForm {
+      padding: 1rem;
+      text-align: center;
+    }
+
+    #inputForm input {
+      padding: 0.5rem;
+      font-size: 1.2rem;
+    }
+
+    #timers {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 1rem;
+      padding: 1rem;
+    }
+
+    .vehicle-timer {
+      background: #1e1e1e;
+      border-radius: 10px;
+      padding: 1rem;
+      width: 300px;
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+    }
+
+    .bird {
+      position: absolute;
+      width: 40px;
+      animation: fly linear forwards;
+    }
+
+    @keyframes fly {
+      from { transform: translateX(-100px); }
+      to { transform: translateX(110vw); }
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <form id="regForm">
-      <input type="text" id="regInput" placeholder="Enter REG" required />
-      <button type="submit">Add Vehicle</button>
-    </form>
-    <div id="vehicleContainer"></div>
+  <div id="starfield"></div>
+  <div id="dayfield"></div>
+
+  <div id="inputForm">
+    <input type="text" id="regInput" placeholder="Enter REG" />
+    <button onclick="addVehicle()">Start Timers</button>
   </div>
-  <div id="starfield" class="starfield"></div>
+
+  <div id="timers"></div>
+
+  <audio id="twinkleSound" src="https://www.myinstants.com/media/sounds/twinkle.mp3"></audio>
 
   <script>
-    const vehicleContainer = document.getElementById("vehicleContainer");
-    const starfield = document.getElementById("starfield");
+    const vehicles = {};
 
-    function createTimer(reg) {
-      const wrapper = document.createElement("div");
-      wrapper.className = "vehicle";
+    function addVehicle() {
+      const reg = document.getElementById('regInput').value.trim().toUpperCase();
+      if (!reg || vehicles[reg]) return;
 
-      const label = document.createElement("h3");
-      label.textContent = reg;
+      const container = document.createElement('div');
+      container.className = 'vehicle-timer';
+      container.innerHTML = `
+        <h3>${reg}</h3>
+        <p>Countdown: <span id="countdown-${reg}">30:00</span></p>
+        <p>Recovery: <span id="recovery-${reg}">00:00</span></p>
+        <button onclick="resetCountdown('${reg}')">Reset Countdown</button>
+        <button onclick="resetRecovery('${reg}')">Reset Recovery</button>
+      `;
+      document.getElementById('timers').appendChild(container);
 
-      const countdown = document.createElement("p");
-      countdown.textContent = "30:00";
+      vehicles[reg] = {
+        countdownStart: Date.now(),
+        recoveryStart: Date.now(),
+        countdownExpired: false,
+      };
+    }
 
-      const recovery = document.createElement("p");
-      recovery.textContent = "Recovered: 00:00";
+    function resetCountdown(reg) {
+      vehicles[reg].countdownStart = Date.now();
+      vehicles[reg].countdownExpired = false;
+    }
 
-      const reset30 = document.createElement("button");
-      reset30.textContent = "Reset 30min";
+    function resetRecovery(reg) {
+      vehicles[reg].recoveryStart = Date.now();
+    }
 
-      const stopRecovery = document.createElement("button");
-      stopRecovery.textContent = "Stop Recovery Timer";
+    function formatTime(ms) {
+      const totalSeconds = Math.floor(ms / 1000);
+      const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
+      const seconds = String(totalSeconds % 60).padStart(2, '0');
+      return `${minutes}:${seconds}`;
+    }
 
-      wrapper.append(label, countdown, reset30, recovery, stopRecovery);
-      vehicleContainer.appendChild(wrapper);
+    function updateTimers() {
+      const now = Date.now();
+      for (const reg in vehicles) {
+        const data = vehicles[reg];
+        const cdElapsed = now - data.countdownStart;
+        const rcElapsed = now - data.recoveryStart;
 
-      let countdownTime = 30 * 60;
-      let recoveryTime = 0;
-      let recoveryInterval;
+        const countdownLeft = 30 * 60 * 1000 - cdElapsed;
+        const cdElem = document.getElementById(`countdown-${reg}`);
+        const rcElem = document.getElementById(`recovery-${reg}`);
 
-      function updateCountdown() {
-        const minutes = Math.floor(countdownTime / 60).toString().padStart(2, '0');
-        const seconds = (countdownTime % 60).toString().padStart(2, '0');
-        countdown.textContent = `${minutes}:${seconds}`;
-        if (countdownTime > 0) {
-          countdownTime--;
-        } else {
-          playTwinkle();
-          notify(reg);
+        if (cdElem && rcElem) {
+          cdElem.textContent = countdownLeft > 0 ? formatTime(countdownLeft) : '00:00';
+          rcElem.textContent = formatTime(rcElapsed);
+
+          if (countdownLeft <= 0 && !data.countdownExpired) {
+            data.countdownExpired = true;
+            notifyUser(reg);
+          }
         }
       }
-
-      function updateRecovery() {
-        recoveryTime++;
-        const minutes = Math.floor(recoveryTime / 60).toString().padStart(2, '0');
-        const seconds = (recoveryTime % 60).toString().padStart(2, '0');
-        recovery.textContent = `Recovered: ${minutes}:${seconds}`;
-      }
-
-      const countdownInterval = setInterval(updateCountdown, 1000);
-      recoveryInterval = setInterval(updateRecovery, 1000);
-
-      reset30.onclick = () => {
-        countdownTime = 30 * 60;
-      };
-
-      stopRecovery.onclick = () => {
-        clearInterval(recoveryInterval);
-      };
+      requestAnimationFrame(updateTimers);
     }
 
-    document.getElementById("regForm").addEventListener("submit", function (e) {
-      e.preventDefault();
-      const reg = document.getElementById("regInput").value.trim();
-      if (reg) {
-        createTimer(reg);
-        document.getElementById("regInput").value = "";
-      }
-    });
-
-    function playTwinkle() {
-      const audio = new Audio("https://freesound.org/data/previews/341/341695_5260877-lq.mp3");
-      audio.play();
-    }
-
-    function notify(reg) {
-      if (document.visibilityState === 'hidden') {
-        const notification = new Notification(`⏰ 30min reached for ${reg}`);
+    function notifyUser(reg) {
+      const audio = document.getElementById('twinkleSound');
+      if (audio) audio.play();
+      if (Notification.permission === 'granted') {
+        new Notification(`30min timer expired for ${reg}`);
       }
     }
 
-    if (Notification.permission !== "granted") {
+    if (Notification.permission !== 'granted') {
       Notification.requestPermission();
     }
 
-    function setDayNightMode() {
-      const hour = new Date().getHours();
-      if (hour >= 17 || hour < 6) {
-        document.body.classList.add("dark");
-        starfield.style.background = "radial-gradient(black, #111)");
-      } else {
-        document.body.classList.remove("dark");
-        starfield.style.background = "linear-gradient(to top, #d0eaff, #ffffff)";
+    function createStars() {
+      for (let i = 0; i < 100; i++) {
+        const star = document.createElement('div');
+        star.className = 'star';
+        star.style.top = `${Math.random() * 100}%`;
+        star.style.left = `${Math.random() * 100}%`;
+        document.getElementById('starfield').appendChild(star);
       }
+    }
+
+    function createShootingStar() {
+      const star = document.createElement('div');
+      star.className = 'shooting-star';
+      star.style.top = `${Math.random() * window.innerHeight}px`;
+      star.style.left = `-${Math.random() * 200}px`;
+      document.getElementById('starfield').appendChild(star);
+      setTimeout(() => star.remove(), 1000);
     }
 
     function spawnBird() {
       const bird = document.createElement('img');
-      bird.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAAUCAMAAADlUj4bAAAAM1BMVEUAAAB/f3+AgID///+ZmZn8/PzZ2dnKysq8vLz4+PjY2Ni+vr7p6enq6urc3Nzv7+/R0dGtXMCZAAAAD3RSTlMA5PAAfRgZGf779goJ/DsxNDfjQAAAQElEQVR42mNgoBL4YwACRBkZGRmZAAEQwMDABGSkpGhprGyQEGgA0LFy5ckAJCIwaMiQJULFwJ+vTp0wMCHFu2bNHBg1aqVEFCxcqUKVOmTrBq0SI6ePUqQIQ1FQcYAJWYlKkyfQWjAAAAAElFTkSuQmCC';
-      bird.classList.add('bird');
-
-      const direction = Math.random() < 0.5 ? 'left' : 'right';
-      const verticalPosition = Math.random() * window.innerHeight * 0.6;
-      const duration = 10 + Math.random() * 10;
-
-      bird.style.top = `${verticalPosition}px`;
-      bird.style.animationDuration = `${duration}s`;
-      bird.style.animationName = direction === 'left' ? 'fly-left' : 'fly-right';
-
-      document.body.appendChild(bird);
-
-      setTimeout(() => {
-        bird.remove();
-      }, duration * 1000);
+      bird.src = 'https://i.imgur.com/O7YtG8B.png';
+      bird.className = 'bird';
+      bird.style.top = `${Math.random() * 60 + 10}%`;
+      bird.style.animationDuration = `${10 + Math.random() * 10}s`;
+      document.getElementById('dayfield').appendChild(bird);
+      setTimeout(() => bird.remove(), 20000);
     }
 
-    function startBirds() {
-      const hour = new Date().getHours();
-      if (hour >= 6 && hour < 17) {
-        setInterval(() => {
-          spawnBird();
-        }, 5000 + Math.random() * 10000);
-      }
+    function spawnBirdsRandomly() {
+      spawnBird();
+      setTimeout(spawnBirdsRandomly, 5000 + Math.random() * 10000);
     }
 
-    window.onload = () => {
-      setDayNightMode();
-      startBirds();
-    };
+    const hour = new Date().getHours();
+    if (hour >= 6 && hour < 17) {
+      document.getElementById('dayfield').style.background = 'linear-gradient(to top, #87cefa, #fff)';
+      spawnBirdsRandomly();
+    } else {
+      createStars();
+      setInterval(createShootingStar, 4000 + Math.random() * 4000);
+    }
+
+    updateTimers();
   </script>
 </body>
 </html>
