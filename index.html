@@ -5,93 +5,74 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>EFM Roadside Welfare Timer</title>
   <style>
-    :root {
-      --highlight: #008cff;
-      --text-color: #111;
-    }
-
     body {
-      font-family: sans-serif;
       margin: 0;
-      padding: 1em;
-      transition: background 0.4s ease-in-out;
-      color: var(--text-color);
+      font-family: sans-serif;
+      background: var(--bg-color);
+      color: white;
+      overflow-x: hidden;
     }
 
-    body.daytime {
-      background: linear-gradient(to top, #c2e9fb, #a1c4fd);
+    :root {
+      --bg-color: #000;
     }
 
-    body.nighttime {
-      background: #0b0f2c;
-      color: #f5f5f5;
+    .tab {
+      display: none;
     }
 
-    .header {
-      text-align: center;
-      font-size: 1.8em;
-      font-weight: bold;
-      margin-bottom: 1em;
+    .tab.active {
+      display: block;
     }
 
-    .tab-bar {
+    .tabs {
       display: flex;
-      gap: 0.5em;
-      margin-bottom: 1em;
       flex-wrap: wrap;
     }
 
-    .tab-bar button {
-      background: var(--highlight);
-      border: none;
-      padding: 0.5em 1em;
-      color: white;
-      cursor: pointer;
-      border-radius: 5px;
-    }
-
-    .timer-box {
-      border: 2px solid var(--highlight);
-      padding: 1em;
-      border-radius: 10px;
-      margin-top: 1em;
-    }
-
-    .timer-large {
-      font-size: 2em;
-    }
-
-    .timer-small {
-      font-size: 1.2em;
-    }
-
-    .controls button {
-      margin: 0.5em 0.25em;
-      padding: 0.5em 1em;
-      background: var(--highlight);
+    .tabs button {
+      background: #333;
       color: white;
       border: none;
-      border-radius: 5px;
+      padding: 10px;
       cursor: pointer;
     }
 
-    #starfield, #birdfield {
+    .tabs button.active {
+      background: #555;
+    }
+
+    .bird {
+      position: absolute;
+      width: 60px;
+      height: auto;
+      animation: fly 15s linear forwards;
+      z-index: 5;
+    }
+
+    @keyframes fly {
+      from {
+        left: -100px;
+      }
+      to {
+        left: 100vw;
+      }
+    }
+
+    .stars {
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      pointer-events: none;
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      overflow: hidden;
       z-index: -1;
     }
 
     .star {
       position: absolute;
-      background: white;
-      border-radius: 50%;
       width: 2px;
       height: 2px;
-      opacity: 0.8;
+      background: white;
       animation: twinkle 2s infinite ease-in-out;
     }
 
@@ -102,99 +83,79 @@
 
     .shooting-star {
       position: absolute;
+      width: 100px;
+      height: 2px;
       background: white;
-      width: 3px;
-      height: 3px;
-      border-radius: 50%;
-      animation: shoot 3s ease-in-out;
+      opacity: 0;
+      transform: rotate(45deg);
+      animation: shoot 1s ease-in-out;
     }
 
     @keyframes shoot {
-      0% { transform: translate(0, 0); opacity: 1; }
-      100% { transform: translate(-300px, 300px); opacity: 0; }
-    }
-
-    .bird {
-      position: absolute;
-      background-image: url('https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Emoji_u1f426.svg/72px-Emoji_u1f426.svg.png');
-      background-size: contain;
-      background-repeat: no-repeat;
-      width: 30px;
-      height: 30px;
-      animation: fly 12s linear infinite;
-    }
-
-    @keyframes fly {
-      0% { left: -10%; top: 20%; }
-      100% { left: 110%; top: 25%; }
+      0% {
+        top: -50px;
+        left: -50px;
+        opacity: 0;
+      }
+      10% {
+        opacity: 1;
+      }
+      100% {
+        top: 100vh;
+        left: 100vw;
+        opacity: 0;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="header">EFM Roadside Welfare Timer</div>
+  <div class="stars" id="starfield"></div>
 
-  <input type="text" id="regInput" placeholder="Enter Vehicle REG" />
-  <button onclick="addVehicle()">Add Vehicle</button>
-
-  <div class="tab-bar" id="tabs"></div>
-  <div id="vehiclePanels"></div>
-  <div id="starfield"></div>
-  <div id="birdfield"></div>
-
-  <audio id="twinkleSound">
-    <source src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_f5fef19e13.mp3?filename=twinkle-117734.mp3" type="audio/mpeg" />
-  </audio>
+  <div class="tabs" id="tabs"></div>
+  <div id="tab-content"></div>
 
   <script>
-    const tabsContainer = document.getElementById('tabs');
-    const vehiclePanels = document.getElementById('vehiclePanels');
-    const starfield = document.getElementById('starfield');
-    const birdfield = document.getElementById('birdfield');
-    const sound = document.getElementById('twinkleSound');
     const vehicles = {};
-    let activeReg = null;
 
-    function addVehicle() {
-      const reg = document.getElementById('regInput').value.trim().toUpperCase();
-      if (!reg || vehicles[reg]) return;
-
-      const tab = document.createElement('button');
-      tab.innerText = reg;
-      tab.onclick = () => showVehicle(reg);
-      tabsContainer.appendChild(tab);
-
-      const panel = document.createElement('div');
-      panel.id = `panel-${reg}`;
-      panel.className = 'timer-box';
-      panel.innerHTML = `
-        <div><strong>REG:</strong> ${reg}</div>
-        <div class="timer-large" id="countdown-${reg}">30:00</div>
-        <button onclick="resetCountdown('${reg}')">Reset 30min Timer</button>
-        <div class="timer-small" id="recovery-${reg}">Recovery Time: 00:00</div>
-        <div class="controls">
-          <button onclick="startRecovery('${reg}')">Start Recovery</button>
-          <button onclick="stopRecovery('${reg}')">Stop</button>
-          <button onclick="resetRecovery('${reg}')">Reset Recovery</button>
-        </div>
-        <div id="status-${reg}">Status: Waiting</div>
-      `;
-      vehiclePanels.appendChild(panel);
+    function createVehicleTab(reg) {
+      if (vehicles[reg]) return;
 
       vehicles[reg] = {
-        countdownStart: Date.now(),
+        countdownStart: null,
+        countdownEnded: false,
         recoveryStart: null,
-        inRecovery: false,
-        countdownEnded: false
+        inRecovery: false
       };
 
-      showVehicle(reg);
+      const tabButton = document.createElement('button');
+      tabButton.textContent = reg;
+      tabButton.onclick = () => activateTab(reg);
+      tabButton.id = `tab-btn-${reg}`;
+      document.getElementById('tabs').appendChild(tabButton);
+
+      const tabDiv = document.createElement('div');
+      tabDiv.classList.add('tab');
+      tabDiv.id = `tab-${reg}`;
+      tabDiv.innerHTML = `
+        <h2>${reg}</h2>
+        <div>Status: <span id="status-${reg}">Awaiting Recovery</span></div>
+        <div>Countdown: <span id="countdown-${reg}">30:00</span></div>
+        <button onclick="resetCountdown('${reg}')">Reset Countdown</button>
+        <div id="recovery-${reg}">Recovery Time: 0:00</div>
+        <button onclick="startRecovery('${reg}')">Start Recovery</button>
+        <button onclick="stopRecovery('${reg}')">Stop Recovery</button>
+      `;
+      document.getElementById('tab-content').appendChild(tabDiv);
+
+      activateTab(reg);
+      resetCountdown(reg);
     }
 
-    function showVehicle(reg) {
-      activeReg = reg;
-      Object.keys(vehicles).forEach(r => {
-        document.getElementById(`panel-${r}`).style.display = r === reg ? 'block' : 'none';
-      });
+    function activateTab(reg) {
+      document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+      document.querySelectorAll('.tabs button').forEach(btn => btn.classList.remove('active'));
+      document.getElementById(`tab-${reg}`).classList.add('active');
+      document.getElementById(`tab-btn-${reg}`).classList.add('active');
     }
 
     function resetCountdown(reg) {
@@ -205,102 +166,105 @@
     function startRecovery(reg) {
       vehicles[reg].recoveryStart = Date.now();
       vehicles[reg].inRecovery = true;
-      document.getElementById(`status-${reg}`).innerText = "Status: In Recovery";
+      document.getElementById(`status-${reg}`).innerText = "In Recovery";
     }
 
     function stopRecovery(reg) {
       vehicles[reg].inRecovery = false;
-      document.getElementById(`status-${reg}`).innerText = "Status: Recovered";
-    }
-
-    function resetRecovery(reg) {
-      vehicles[reg].recoveryStart = null;
-      vehicles[reg].inRecovery = false;
-      document.getElementById(`recovery-${reg}`).innerText = `Recovery Time: 00:00`;
-      document.getElementById(`status-${reg}`).innerText = "Status: Waiting";
+      document.getElementById(`status-${reg}`).innerText = "Recovered";
     }
 
     function formatTime(seconds) {
-      const m = String(Math.floor(seconds / 60)).padStart(2, '0');
-      const s = String(seconds % 60).padStart(2, '0');
-      return `${m}:${s}`;
-    }
-
-    function notify(message) {
-      if (Notification.permission === 'granted') {
-        new Notification(message);
-      } else if (Notification.permission !== 'denied') {
-        Notification.requestPermission().then(permission => {
-          if (permission === 'granted') new Notification(message);
-        });
-      }
+      const m = Math.floor(seconds / 60);
+      const s = seconds % 60;
+      return `${m}:${s.toString().padStart(2, '0')}`;
     }
 
     function updateDisplay() {
       Object.keys(vehicles).forEach(reg => {
         const v = vehicles[reg];
 
-        // Countdown
-        const elapsed = Math.floor((Date.now() - v.countdownStart) / 1000);
-        const remaining = Math.max(0, 1800 - elapsed);
-        document.getElementById(`countdown-${reg}`).innerText = formatTime(remaining);
+        if (v.countdownStart) {
+          const elapsed = Math.floor((Date.now() - v.countdownStart) / 1000);
+          const remaining = Math.max(0, 1800 - elapsed);
+          document.getElementById(`countdown-${reg}`).innerText = formatTime(remaining);
 
-        if (remaining === 0 && !v.countdownEnded) {
-          v.countdownEnded = true;
-          notify(`${reg} countdown finished`);
-          sound.play();
+          if (remaining === 0 && !v.countdownEnded) {
+            v.countdownEnded = true;
+            new Notification(`${reg} has reached 30 minutes!`);
+            const sound = new Audio('https://cdn.pixabay.com/download/audio/2022/03/15/audio_d62cf51db4.mp3?filename=twinkle-113735.mp3');
+            sound.play();
+          }
         }
 
-        // Recovery
         if (v.inRecovery && v.recoveryStart) {
-          const recElapsed = Math.floor((Date.now() - v.recoveryStart) / 1000);
-          document.getElementById(`recovery-${reg}`).innerText = `Recovery Time: ${formatTime(recElapsed)}`;
+          const elapsed = Math.floor((Date.now() - v.recoveryStart) / 1000);
+          document.getElementById(`recovery-${reg}`).innerText = `Recovery Time: ${formatTime(elapsed)}`;
         }
       });
+
       requestAnimationFrame(updateDisplay);
     }
 
     updateDisplay();
 
-    // Themes & background effects
-    const hour = new Date().getHours();
-    if (hour >= 6 && hour < 17) {
-      document.body.classList.add('daytime');
-      addBirds();
-    } else {
-      document.body.classList.add('nighttime');
-      generateStars();
-      setInterval(generateShootingStar, 10000);
+    if (Notification.permission !== "granted") {
+      Notification.requestPermission();
     }
 
-    function generateStars() {
+    // Dynamic styling for day/night
+    const now = new Date();
+    const hour = now.getHours();
+    const root = document.documentElement;
+
+    const starfield = document.getElementById('starfield');
+
+    if (hour >= 17 || hour < 6) {
+      root.style.setProperty('--bg-color', '#000');
       for (let i = 0; i < 100; i++) {
         const star = document.createElement('div');
-        star.className = 'star';
-        star.style.left = Math.random() * 100 + 'vw';
-        star.style.top = Math.random() * 100 + 'vh';
+        star.classList.add('star');
+        star.style.top = `${Math.random() * 100}vh`;
+        star.style.left = `${Math.random() * 100}vw`;
         starfield.appendChild(star);
       }
+
+      setInterval(() => {
+        const shootingStar = document.createElement('div');
+        shootingStar.classList.add('shooting-star');
+        shootingStar.style.top = `${Math.random() * 50}vh`;
+        shootingStar.style.left = `${Math.random() * 50}vw`;
+        starfield.appendChild(shootingStar);
+        setTimeout(() => shootingStar.remove(), 1000);
+      }, 10000);
+
+    } else {
+      root.style.setProperty('--bg-color', '#87ceeb'); // light sky
+      spawnBirdsRandomly();
     }
 
-    function generateShootingStar() {
-      const star = document.createElement('div');
-      star.className = 'shooting-star';
-      star.style.left = Math.random() * 100 + 'vw';
-      star.style.top = Math.random() * 50 + 'vh';
-      starfield.appendChild(star);
-      setTimeout(() => star.remove(), 3000);
-    }
+    function spawnBirdsRandomly() {
+      const birdImg = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAAaCAYAAABTKNU8AAAACXBIWXMAAAsTAAALEwEAmpwYAAABJklEQVRoge3WwQ2CQBAE0cvYgAEdZyF4nIGQkzAzdFYGiZSzIAf0c3qzvv10CgI5uUkkkklmyTsHDhw4cOHChQsWLFiwYMGCBQsWLFiw4H8Kea5mFbcCaA3CuA9YJwF0KcBfCnAXgqgPWCcBdCnAXwpgNwvAOgfQpgNwnAHQpgF4KsBeCnAXQpgF4KsBeCnAXQpgNwrAHQpwF8KYDcKwD0KYAeCnAXgqgNwpwF8KYAeCnAXQpgN4KsBeCnAXQpwF4KsBeCnAXQpwF4KsBeCnAXQpwF4K8PqWwD8m8Q9xXbLM1wAAAABJRU5ErkJggg==';
 
-    function addBirds() {
-      for (let i = 0; i < 3; i++) {
-        const bird = document.createElement('div');
-        bird.className = 'bird';
-        bird.style.top = `${10 + i * 15}%`;
-        bird.style.animationDelay = `${i * 3}s`;
-        birdfield.appendChild(bird);
+      function spawnBird() {
+        const bird = document.createElement('img');
+        bird.src = birdImg;
+        bird.classList.add('bird');
+        bird.style.top = `${Math.random() * 60 + 10}vh`;
+        bird.style.animationDuration = `${10 + Math.random() * 10}s`;
+        document.body.appendChild(bird);
+        bird.addEventListener('animationend', () => bird.remove());
+
+        const nextSpawn = Math.random() * 10000 + 5000;
+        setTimeout(spawnBird, nextSpawn);
       }
+
+      spawnBird();
     }
+
+    // Init test vehicles
+    createVehicleTab("EFM-001");
+    createVehicleTab("EFM-002");
   </script>
 </body>
 </html>
