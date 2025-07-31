@@ -74,7 +74,7 @@
       box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
     }
 
-    .bird{
+    .bird {
     background-image: url('https://s3-us-west-2.amazonaws.com/s.cdpn.io/174479/bird-cells-new.svg');
     filter: invert(34%) sepia(55%) saturate(427%) hue-rotate(141deg) brightness(93%) contrast(91%);
     background-size: auto 100%;
@@ -344,21 +344,6 @@
       star.style.left = `-${Math.random() * 200}px`;
       document.getElementById('starfield').appendChild(star);
       setTimeout(() => star.remove(), 1000);
-    }
-
-    function spawnBird() {
-      const bird = document.createElement('img');
-      bird.src = 'https://i.imgur.com/O7YtG8B.png';
-      bird.className = 'bird';
-      bird.style.top = `${Math.random() * 60 + 10}%`;
-      bird.style.animationDuration = `${10 + Math.random() * 10}s`;
-      document.getElementById('dayfield').appendChild(bird);
-      setTimeout(() => bird.remove(), 20000);
-    }
-
-    function spawnBirdsRandomly() {
-      spawnBird();
-      setTimeout(spawnBirdsRandomly, 5000 + Math.random() * 10000);
     }
 
     const hour = new Date().getHours();
